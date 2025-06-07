@@ -1,3 +1,13 @@
+# 1) Enable the I2C kernel driver
+sudo raspi-config             # → Interface Options → I2C → Enable
+sudo reboot
+
+# 2) Install system packages and smbus2
 sudo apt update
 sudo apt install -y python3-smbus python3-dev i2c-tools
 pip3 install --user smbus2
+
+# 3) Verify your Pico shows up on the bus
+i2cdetect -y 1
+# You should see "42" in the map at address 0x42.
+
