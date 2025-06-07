@@ -10,10 +10,12 @@ def send(bus, msg: str):
     bus.i2c_rdwr(i2c_msg.write(I2C_ADDR, msg.encode('ascii')))
 
 def read(bus, length=MAX_LEN) -> bytes:
+    # Read exactly `length` bytes; SDA will float high (0xFF) if the slave
+    # didn’t drive all of them.
     msg = i2c_msg.read(I2C_ADDR, length)
     bus.i2c_rdwr(msg)
     raw = bytes(msg)
-    # strip any trailing 0xFF or 0x00 padding
+    # Strip trailing 0xFF (bus idle) and 0x00 padding
     return raw.rstrip(b'\xff').rstrip(b'\x00')
 
 def main():
@@ -27,19 +29,35 @@ def main():
             if not cmd:
                 continue
 
-            print(">>> Sending:", cmd, flush=True)
+            # 1) send
+            print(f">>> Sending: {cmd!r}", flush=True)
             send(bus, cmd)
             time.sleep(0.05)
 
-            print(">>> Reading response…", flush=True)
-            resp = read(bus)
-            if not resp:
-                print("← (no data!)")
+            # 2) read raw
+            raw = read(bus)
+            print(f">>> Raw bytes: {raw!r}", flush=True)
+
+            # 3) attempt to decode
+            try:
+                s = raw.decode('ascii')
+            except UnicodeDecodeError:
+                s = None
+
+            # 4) parse by command
+            if cmd.upper() == "TEMP" and s is not None:
+                # Expect something like "28.3C"
+                print("← Temperature:", s)
+            elif cmd.upper() == "ID" and s is not None:
+                # UID is hex; group it nicely if you like
+                uid = s.lower()
+                print("← Pico UID:", uid)
+            elif s is not None:
+                # Echo case
+                print("← Echoed message:", s)
             else:
-                try:
-                    print("←", resp.decode('utf-8'), flush=True)
-                except UnicodeDecodeError:
-                    print("← (raw)", resp, flush=True)
+                # Non-text or empty
+                print("← (uninterpretable data)", raw)
 
 if __name__ == "__main__":
     main()
